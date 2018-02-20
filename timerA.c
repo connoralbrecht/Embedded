@@ -1,72 +1,47 @@
 #include "timerA.h"
 #include "LED.h"
-#include "pushbutton.h"
-extern int x;
-extern int p;
+
+extern unsigned int g1msTimeout;
+
 void ConfigureTimerA(void)
 {
-    TA0CTL = (MC_0 | TACLR);
+	// Timer0_A3 Control Register
+    TA0CTL |= MC_0;     // Stop the timer
+	TA0CTL |= TACLR;    // Clear the timer
 
-    //choose SMCLK, select an input divider, and start in mode
-    TA0CTL = (TASSEL_2 | ID_3 | MC_1);
+	TA0CTL |= TASSEL_2 | ID_0 | MC_1;
+	/* TASSEL1 = 0x0200 Timer A clock source select 0
+	 * TASSEL0 = 0x0100 Timer A clock source select 1
+	 *  00 = TACLK
+	 *  01 = ACLK
+	 *  10 = SMCLK
+	 *  11 = INCLK
+	 * ID1 = 0x0080 Timer A clock input divider 1
+	 * ID0 = 0x0040 Timer A clock input divider 0
+	 *  00 => Input divider = 1
+	 *  01 => Input divider = 2
+	 *  10 => Input divider = 4
+	 *  11 => Input divider = 8
+	 * MC1 = 0x0020 Timer A mode control 1
+	 * MC0 = 0x0010 Timer A mode control 0
+	 *  00 = Stop
+	 *  01 = Up
+	 *  10 = Continuous
+	 *  11 = Up/Down
+	 * TACLR = 0x0004 Timer A counter clear
+	 * TAIE = 0x0002 Timer A counter interrupt enable
+	 * TAIFG = 0x0001 Timer A counter interrupt flag
+	 */
 
-    //set value of CCR0
-    TA0CCR0 = 499;
+	TACCR0 = TA0CCR0_VALUE;
 
-    //set value of CCR1
-    TA0CCR1 = 1;
-
-    //timer A interrupt enable
-    TA0CTL |= TAIE;
-
-    //compare/control 0 interrupt enable
-    TA0CCTL0 |= CCIE;
-
-    //compare/control 1 interrupt enable
-    TA0CCTL1 |= CCIE;
+	// TACCR0 interrupt enabled (see Section 12.2.6 of User's Guide)
+	TACCTL0 |= CCIE;
 }
 
 #pragma vector = TIMER0_A0_VECTOR
 // Interrupt service routine for CCIFG0
-    __interrupt void Timer0_A0_routine(void)
+__interrupt void TimerA0_routine(void)
 {
-
-        static char up;
-        if(TA0CCR1 == TA0CCR0){
-            x = -1;
-            up = 0;
-        }
-        else if (TA0CCR1 > 0 && up == 0){
-            x = -1;
-        }
-        else if(TA0CCR1 < TA0CCR0){
-            x = 1;
-            up = 1;
-        }
-
-        if(p == 0){
-        TA0CCR1 += x;
-        }
-}
-
-#pragma vector = TIMER0_A1_VECTOR
-// Interrupt service routine for CCIFG1 and TAIFG
-    __interrupt void Timer0_A1_routine(void)
-{
-    switch (TAIV){
-    case TA0IV_NONE:
-        break;
-    case TA0IV_TACCR1: // CCIFG1 interrupt
-        TURN_OFF_LED1;
-        //P1OUT &= ~BIT1;
-        break;
-    case TA0IV_TAIFG: // TAIFG interrupt
-        //cancel out flash
-        if(TA0CCR1 > 10){
-        TURN_ON_LED1;
-        }
-        //P1OUT |= BIT1;
-        break;
-    default: for (;;); // Should not be possible
-    }
+	g1msTimeout++;
 }

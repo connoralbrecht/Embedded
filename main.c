@@ -2,39 +2,67 @@
 #include "LED.h"
 #include "pushbutton.h"
 #include "timerA.h"
+#include "debounce.h"
+#include "debug_pins.h"
 
-// Global variable
-int x;
-int p = 1;
+// Global Variables
+unsigned int g1msTimeout;		// This variable is incremented by the interrupt handler and
+								// decremented by a software call in the main loop.
+unsigned int g1msTimer;			// This variable is incremented in ManageSoftwareTimers
 
-// Function prototypes
-void ConfigureClockModule(void);
+// Function Prototypes
+void ConfigureClockModule();
+void ManageSoftwareTimers(void);
 
 void main(void)
 {
-    // Stop the watchdog timer, and configure the clock module.
-    WDTCTL = WDTPW + WDTHOLD;
+	volatile SwitchStatus PushButtonStatus;
+	SwitchDefine PushButton;
+
+    WDTCTL = WDTPW | WDTHOLD;		// Stop watchdog timer
     ConfigureClockModule();
 
-    // Initialize port pins associated with the LEDs, and then turn off LEDs.
-    InitializeLEDPortPins();
-
-    // Initialize the port pin associated with the pushbutton
-    InitializePushButtonPortPin();
-
-    // Configure timer A to generate the required interrupt.
+    // Initialize hardware.
     ConfigureTimerA();
+	InitializeLEDPortPins();
+	InitializePushButtonPortPin();
 
-    _enable_interrupts();
+	// Initialize the pushbutton switch.
+	InitializeSwitch(&PushButton,(char *) &PUSHBUTTON_PORT_IN,(unsigned char) PUSHBUTTON_BIT,
+			HIGH_THRESHOLD,LOW_THRESHOLD);
 
-    // Infinite loop
-    while (1) {
-    }
+	// Also, initialize port pins used for debug.
+	SET_DEBUG1_PIN_LOW;
+	SET_DEBUG1_PIN_AS_AN_OUTPUT;
+	SET_DEBUG0_PIN_LOW;
+	SET_DEBUG0_PIN_AS_AN_OUTPUT;
+
+	_enable_interrupts();		// interrupts enabled
+
+	// Loop forever
+	while(1) {
+		ManageSoftwareTimers();
+		PushButtonStatus = Debouncer(&PushButton);
+		if (PushButtonStatus == Low){ // Switch is inactive
+			TURN_OFF_LED1;
+		}
+		else {
+			TURN_ON_LED1;
+		}
+	}
 }
 
-void ConfigureClockModule(void)
+void ConfigureClockModule()
 {
-    // Configure Digitally Controlled Oscillator (DCO) using factory calibrations.
-    DCOCTL  = CALDCO_1MHZ;
-    BCSCTL1 = CALBC1_1MHZ;
+	// Configure Digitally Controlled Oscillator (DCO) using factory calibrations
+	DCOCTL  = CALDCO_1MHZ;
+	BCSCTL1 = CALBC1_1MHZ;
+}
+
+void ManageSoftwareTimers(void)
+{
+	if (g1msTimeout){
+		g1msTimeout--;
+		g1msTimer++;
+	}
 }
